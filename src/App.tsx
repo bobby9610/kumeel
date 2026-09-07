@@ -1,35 +1,50 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from '/vite.svg'
+import { useEffect, useRef, useState } from 'react'
+import type { ReactNode, FormEvent } from 'react'
+import { initialContent, validContent, heroImage } from './content'
+import type { Content, Writing, Media } from './content'
 import './App.css'
-
-function App() {
-  const [count, setCount] = useState(0)
-
-  return (
-    <>
-      <div>
-        <a href="https://vitejs.dev" target="_blank">
-          <img src={viteLogo} className="logo" alt="Vite logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
-      </div>
-      <h1>Vite + React</h1>
-      <div className="card">
-        <button onClick={() => setCount((count) => count + 1)}>
-          count is {count}
-        </button>
-        <p>
-          Edit <code>src/App.tsx</code> and save to test HMR
-        </p>
-      </div>
-      <p className="read-the-docs">
-        Click on the Vite and React logos to learn more
-      </p>
-    </>
-  )
+import { CloudPanel } from './components/CloudPanel'
+import { readPublished } from './lib/cloud'
+const Arrow = () => <span aria-hidden="true">↗</span>
+function Modal({ children, close, label }: { children: ReactNode; close: () => void; label: string }) {
+ const ref = useRef<HTMLDialogElement>(null)
+ useEffect(() => { const d = ref.current; d?.showModal(); const old = document.body.style.overflow; document.body.style.overflow = 'hidden'; return () => { document.body.style.overflow = old; d?.close() } }, [])
+ return <dialog ref={ref} className="modal" onCancel={close} aria-label={label} onClick={e => { if (e.target === e.currentTarget) close() }}><button className="close" onClick={close} aria-label="إغلاق">×</button>{children}</dialog>
 }
-
+function App({ startingContent = initialContent }: { startingContent?: Content }) {
+ const [content, setContent] = useState<Content>(startingContent)
+ const [filter, setFilter] = useState('الكل')
+ const [mediaFilter, setMediaFilter] = useState('الكل')
+ const [reading, setReading] = useState<Writing | null>(null)
+ const [viewing, setViewing] = useState<Media | null>(null)
+ const [editor, setEditor] = useState(false)
+ const [menu, setMenu] = useState(false)
+ const [notice, setNotice] = useState('')
+ const [draft, setDraft] = useState(false)
+ const [revision, setRevision] = useState<number | null>(null)
+ useEffect(() => { try { const saved = localStorage.getItem('kumeel-journal-v1'); if (saved) { const parsed: unknown = JSON.parse(saved); if (validContent(parsed)) { setContent(parsed); setDraft(true) } } } catch { setNotice('تعذّر تحميل المسودة المحفوظة.') } }, [])
+ useEffect(() => { let active = true; readPublished().then(result => { if (!active) return; setRevision(result.revision); let hasDraft = false; try { hasDraft = validContent(JSON.parse(localStorage.getItem('kumeel-journal-v1') || 'null')) } catch { /* Invalid local data must not hide a published update. */ } if (!hasDraft) setContent(result.content) }).catch(() => { if (active) setNotice('تعذّر تحديث النسخة المنشورة؛ نعرض آخر نسخة متاحة.') }); return () => { active = false } }, [])
+ function save(next: Content) { try { localStorage.setItem('kumeel-journal-v1', JSON.stringify(next)); setContent(next); setDraft(true); setNotice('حُفظت المسودة على هذا المتصفح.'); return true } catch { setNotice('لم يتم الحفظ؛ مساحة المتصفح غير كافية. صدّر نسخة من محتواك.'); return false } }
+ function addEntry(e: FormEvent<HTMLFormElement>) { e.preventDefault(); const data = new FormData(e.currentTarget); const kind = String(data.get('kind')); const title = String(data.get('title')).trim(); const body = String(data.get('body')).trim(); if (!title || !body) return; if (kind === 'صورة' || kind === 'فيديو') { if (!/^https:\/\//.test(body)) { setNotice('استخدم رابط HTTPS مباشرًا للصورة أو ملف الفيديو.'); return } if (save({ ...content, media: [...content.media, { id: crypto.randomUUID(), title, type: kind, url: body }] })) e.currentTarget.reset() } else if (save({ ...content, writings: [...content.writings, { id: crypto.randomUUID(), title, category: kind as Writing['category'], text: body }] })) e.currentTarget.reset() }
+ function exportContent() { const a = document.createElement('a'); const url = URL.createObjectURL(new Blob([JSON.stringify(content, null, 2)], { type: 'application/json' })); a.href = url; a.download = 'kumeel-content.json'; a.click(); URL.revokeObjectURL(url) }
+ return <>
+ <a href="#main" className="skip">انتقل إلى المحتوى</a>
+ <header className="header wrap"><a href="#" className="wordmark" aria-label="كميل، الرئيسية">كميل<span>.</span></a><button className="menu-toggle" aria-label="القائمة" aria-expanded={menu} onClick={() => setMenu(!menu)}>☰</button><nav className={menu ? 'open' : ''} aria-label="التنقل الرئيسي">{[['#','الرئيسية'],['#story','حكايتي'],['#writings','كتاباتي'],['#gallery','عدستي']].map(([href,label]) => <a key={href} href={href} onClick={() => setMenu(false)}>{label}</a>)}</nav><a href="#contact" className="contact-link">لنتحدث <Arrow /></a></header>
+ <main id="main">
+ <section className="hero wrap"><div className="hero-copy"><h1>كميل ال نهاب<span className="name-latin" lang="en">KUMEEL AL NAHAB</span></h1><h2>حياة تروى،<br />وأثر <em>يبقى.</em></h2><p>بعضٌ منّي، وبعضٌ ممّا أحبّ.<br />حكايات، وكلمات، ولحظات تستحقّ أن تبقى.</p><a className="primary" href="#story">اكتشف حكايتي <span>←</span></a><a className="hero-secondary" href="#writings">بين سطوري <span>↙</span></a></div><figure className="hero-figure"><div className="arch"><img src={heroImage} alt="مشهد فني لكثبان الصحراء ومسافر صغير في الأفق" /></div><div className="seal" aria-hidden="true"><span>نمضي ويبقى</span><b>الأثر</b><span>✦</span></div><figcaption><span>لكلّ طريقٍ حكاية.</span><span className="image-note">مشهد فني · صورة مولّدة</span></figcaption></figure><span className="side-note" lang="en">A LITTLE OF ME. A LOT OF LIFE.</span></section>
+ <div className="section-rule wrap"><span>✳</span></div>
+ <section className="chapters wrap" aria-label="أبواب المساحة">{[{n:'01',title:'حكايتي',text:'ما تصنعه الأيام فينا، وما نصنعه نحن من أيامنا.',href:'#story',icon:'◡'},{n:'02',title:'كتاباتي',text:'حين تضيق العبارة، تتّسع القصيدة. هنا تسكن الكلمات.',href:'#writings',icon:'✎'},{n:'03',title:'عدستي',text:'أحفظ من اللحظة ضوءها، ومن الطريق دهشته.',href:'#gallery',icon:'◎'}].map(c => <a href={c.href} key={c.n}><span className="chapter-icon">{c.icon}</span><div><h3>{c.title}</h3><p>{c.text}</p></div><span className="chapter-number">{c.n}</span></a>)}</section>
+ <section id="story" className="story wrap section"><div><div className="section-label">الفصل الأول <span>01 /</span></div><h2>خلف الاسم،<br />حكاية إنسان.</h2><span className="signature">كميل ال نهاب</span></div><div className="story-body"><p>{content.bio}</p><p className="muted">هذه بداية الدفتر. ستأتي التفاصيل بصوت صاحبها، وستجد كل ذكرى مكانها هنا.</p><a className="text-link" href="#writings">ومن الحكاية إلى الكلمة <span>←</span></a></div></section>
+ <section id="writings" className="writing-section"><div className="wrap section"><div className="section-heading"><div><div className="section-label">بين السطور <span>02 /</span></div><h2>للروحِ مسوّدة.</h2></div><div className="tabs" aria-label="تصفية الكتابات">{['الكل','تأملات','شعر'].map(f => <button aria-pressed={filter === f} className={filter === f ? 'active' : ''} key={f} onClick={() => setFilter(f)}>{f}</button>)}</div></div><div className="writing-list">{content.writings.filter(w => filter === 'الكل' || filter === w.category).map((w,i) => <button className="writing-row" key={w.id} onClick={() => setReading(w)}><span className="writing-index">0{i+1}</span><div><span className="category">{w.category}</span><h3>{w.title}</h3><p>{w.text.split('\n')[0]}</p></div><span className="read-arrow">↖</span></button>)}</div><p className="sample-note">نصوص افتتاحية تجريبية للتصميم، وليست أعمالًا منسوبة إلى كميل.</p></div></section>
+ <section id="gallery" className="gallery wrap section"><div className="section-heading"><div><div className="section-label">ذاكرة الضوء <span>03 /</span></div><h2>أشياء لا تقولها الكلمات.</h2></div><div className="tabs" aria-label="تصفية المعرض">{['الكل','صورة','فيديو'].map(f => <button key={f} aria-pressed={mediaFilter === f} className={mediaFilter === f ? 'active' : ''} onClick={() => setMediaFilter(f)}>{f === 'صورة' ? 'صور' : f === 'فيديو' ? 'أفلام' : f}</button>)}</div></div><div className="gallery-grid">{content.media.filter(m => mediaFilter === 'الكل' || m.type === mediaFilter).map((m,i) => <button className="photo" key={m.id} onClick={() => setViewing(m)}>{m.type === 'صورة' ? <img src={m.url} alt={m.title} loading="lazy" /> : <div className="video-cover"><span>▷</span><p>فيلم من الذاكرة</p></div>}<span className="photo-caption"><span>{m.title}</span><small>{String(i+1).padStart(2,'0')} <Arrow /></small></span></button>)}</div>{!content.media.some(m => mediaFilter === 'الكل' || m.type === mediaFilter) && <div className="empty"><span>▷</span><h3>لكل فيلم لحظته الأولى.</h3><p>لم تُضف أفلام بعد. يمكن إضافتها من دفتر التحرير.</p></div>}<p className="sample-note">صور للتصور البصري؛ تُستبدل بصورك الشخصية. الصور الخارجية من Unsplash.</p></section>
+ <section className="quote"><span>“</span><blockquote>لسنا ما نملك من الأشياء،<br />بل ما نتركه في الآخرين من <em>أثر.</em></blockquote><p>فكرة تفتح باب هذه المساحة</p></section>
+ <section id="contact" className="contact wrap"><div><div className="section-label">والحكاية مستمرّة</div><h2>أهلًا بمن جاء،<br />وبما تحمله الأيام.</h2></div><div><p>هنا يبدأ حديثٌ آخر.<br />ستُضاف وسائل تواصل كميل المعتمدة قريبًا.</p><a className="text-link" href="#">العودة إلى أول الحكاية <span>↑</span></a></div></section>
+ </main><footer className="footer wrap"><a href="#" className="wordmark">كميل<span>.</span></a><p>© {new Date().getFullYear()} كميل ال نهاب · مساحة تشبهني</p><button className="editor-link" onClick={() => setEditor(true)}>دفتر التحرير <span>↗</span></button></footer>
+ {draft && <div className="draft-banner">تُعرض مسودتك المحلية · لم تُنشر على الإنترنت</div>}
+ <div role="status" className={notice ? 'toast' : ''} onClick={() => setNotice('')}>{notice}</div>
+ {reading && <Modal label={reading.title} close={() => setReading(null)}><article className="reader"><span className="section-label">{reading.category} · من الدفتر</span><h2>{reading.title}</h2><div className={reading.category === 'شعر' ? 'poem' : ''}>{reading.text.split('\n\n').map((p,i) => <p key={i}>{p}</p>)}</div><small>نص افتتاحي تجريبي أو مسودة محلية.</small></article></Modal>}
+ {viewing && <Modal label={viewing.title} close={() => setViewing(null)}><div className="lightbox">{viewing.type === 'صورة' ? <img src={viewing.url} alt={viewing.title} /> : <video controls autoPlay src={viewing.url} onError={() => setNotice('تعذّر تشغيل الملف. أضف رابط فيديو مباشرًا مدعومًا مثل MP4.')} />}<h2>{viewing.title}</h2></div></Modal>}
+ {editor && <Modal label="دفتر التحرير" close={() => setEditor(false)}><div className="editor"><span className="section-label">مساحتك خلف الكلمات</span><h2>دفتر التحرير</h2><CloudPanel content={content} revision={revision} onLoad={save} onPublish={(next, version) => { setContent(next); setRevision(version); setDraft(false); try { localStorage.removeItem('kumeel-journal-v1') } catch { /* Published state remains authoritative. */ } }} /><p>حقول الدفتر تحفظ مسودة محلية. استخدم النشر السحابي أعلاه لنشر النسخة المحفوظة، أو صدّر نسخة للاحتفاظ بها.</p><form onSubmit={e => { e.preventDefault(); save({ ...content, bio: String(new FormData(e.currentTarget).get('bio')).trim() }) }}><label>نبذتك<textarea key={content.bio} name="bio" defaultValue={content.bio} required maxLength={10000} /></label><button className="primary">حفظ النبذة</button></form><h3>أضف صفحة إلى الدفتر</h3><form onSubmit={addEntry}><label>نوع المحتوى<select name="kind"><option>تأملات</option><option>شعر</option><option>صورة</option><option>فيديو</option></select></label><label>العنوان<input name="title" required maxLength={150} /></label><label>النص أو رابط الملف المباشر<textarea name="body" required maxLength={50000} placeholder="اكتب نصك، أو رابط HTTPS لصورة أو فيديو MP4" /></label><button className="primary">إضافة إلى المسودة <span>＋</span></button></form><label>أو ارفع صورة من جهازك (حتى ١ ميغابايت)<input type="file" accept="image/png,image/jpeg,image/webp" onChange={e => { const f = e.target.files?.[0]; if (!f) return; if (f.size > 1024 * 1024 || !['image/png','image/jpeg','image/webp'].includes(f.type)) { setNotice('اختر صورة PNG أو JPEG أو WebP أصغر من ١ ميغابايت.'); return } const reader = new FileReader(); reader.onload = () => { save({ ...content, media: [...content.media, { id: crypto.randomUUID(), title: f.name.replace(/\.[^.]+$/, ''), type: 'صورة', url: String(reader.result) }] }) }; reader.onerror = () => setNotice('تعذّرت قراءة الصورة.'); reader.readAsDataURL(f); e.target.value = '' }} /></label><div className="editor-actions"><button onClick={exportContent}>تصدير نسخة JSON ↓</button><label className="import-label">استيراد نسخة<input type="file" accept="application/json,.json" onChange={async e => { const f = e.target.files?.[0]; if (!f) return; try { if (f.size > 4000000) throw Error(); const parsed: unknown = JSON.parse(await f.text()); if (!validContent(parsed)) throw Error(); save(parsed) } catch { setNotice('ملف غير صالح. اختر نسخة JSON مصدّرة من دفتر التحرير.'); } e.target.value = '' }} /></label></div><p className="sample-note">راجع محتواك قبل النشر. لا تضف مواد خاصة إلى المكتبة ذات الروابط العامة.</p></div></Modal>}
+ </>
+}
 export default App

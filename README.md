@@ -1,21 +1,37 @@
-# React + TypeScript + Vite
+# كميل ال نهاب — مساحة شخصية
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+موقع عربي RTL: سيرة، شعر وتأملات، معرض صور وأفلام، ودفتر تحرير محلي وسحابي. React + TypeScript + Vite، مع Supabase للحفظ والمصادقة والملفات وVercel لعرض HTML من الخادم.
 
-While this project uses React, Vite supports many popular JS frameworks. [See all the supported frameworks](https://vitejs.dev/guide/#scaffolding-your-first-vite-project).
+## التشغيل والتحقق
 
-## Deploy Your Own
+Node.js 24. شغّل `npm ci` ثم `npm run dev`. `npm run lint` و`npm run build` للتحقق. البناء يولّد نسخة HTML ثابتة وSSR bundle. على Vercel تعرض `api/page.mjs` أحدث منشور من Supabase داخل HTML، مع بيانات hydration مهربة بأمان. التخزين المؤقت 60 ثانية مع stale-while-revalidate حتى 300 ثانية؛ عند تعذر قاعدة البيانات تُعرض النسخة المرفقة دون تخزين الاستجابة.
 
-Deploy your own Vite project with Vercel.
+`npm run preview` يعاين النسخة الثابتة محليًا، ولا يشغّل Vercel Functions. لاختبار الخادم استخدم `vercel dev` أو استدعِ handler من Node بعد البناء.
 
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/vercel/examples/tree/main/framework-boilerplates/vite-react&template=vite-react)
+## المحتوى والصلاحيات
 
-_Live Example: https://vite-react-example.vercel.app_
+- `src/content.ts`: محتوى البداية. النصوص والصور الحالية تجريبية ومعلّمة؛ ليست سيرة موثقة أو أعمالًا منسوبة إلى صاحب الموقع.
+- `kumeel_published`: نسخة عامة واحدة. الزوار يقرؤون فقط؛ أعضاء `kumeel_editors` وحدهم يعدّلون حقل المحتوى. رقم النسخة يُحدّث من قاعدة البيانات ويمنع الكتابة فوق تحديث أحدث.
+- `kumeel_drafts`: مسودة خاصة لكل مالك مخوّل. تسجيل الدخول وحده لا يمنح أي صلاحية نشر.
+- `kumeel_editors`: قائمة المالكين. العضو يرى عضويته فقط ولا يستطيع إضافة نفسه أو الآخرين.
+- `kumeel-media`: صور JPEG/PNG/WebP وفيديو MP4/WebM حتى 50 MiB. الملفات لها روابط عامة، ورفعها يتطلب عضوية مالك. لا ترفع مواد خاصة.
 
-### Deploying From Your Terminal
+دفتر التحرير يبقي الحفظ المحلي والتصدير والاستيراد متاحًا. بعد تسجيل الدخول يمكن حفظ مسودة سحابية أو تحميلها، ورفع الملفات، ثم تأكيد نشر النسخة الحالية. حفظ حقل النبذة أو إضافة النص يحدّث المسودة فقط. يجب حفظ الحقول قبل النشر. الصور المحلية الصغيرة تتحول إلى Storage عند النشر.
 
-You can deploy your new Vite project with a single command from your terminal using [Vercel CLI](https://vercel.com/download):
+## Supabase
 
-```shell
-$ vercel
-```
+المشروع المرتبط: `ktwugokiznarbnsvohzq`. `src/supabase-config.json` يحتوي URL ومفتاحًا عامًا فقط، وليس service_role أو رمز الإدارة. السياسات في `supabase/migrations/` تستخدم RLS وعضوية قاعدة البيانات ولا تثق ببيانات المستخدم القابلة للتعديل.
+
+رمز الإدارة يُقرأ محليًا من `.env` باسم `supabase`؛ الملف مستبعد من Git والنشر. لا تُضمّن رمز الإدارة أو GitHub أو service_role في كود الواجهة. `scripts/supabase-admin.py` يستعمل Management API ويتيح فحص SQL والمستشارين. الترحيل في المستودع يحمل رقمًا مولّدًا من الخادم. لا تعِد تطبيق schema.sql على مشروع مُهيأ.
+
+لتخويل المالك بعد التحقق من بريد حسابه الحالي في Supabase Auth، يضيف المسؤول UUID الحساب إلى `kumeel_editors` من قناة إدارية فقط. لا يُنشأ حساب أو كلمة مرور تلقائيًا، ولا توجد صلاحية نشر للحسابات العادية. يمكن تسجيل الدخول بكلمة مرور الحساب الحالي.
+
+## Vercel والبحث
+
+`vercel.json` يوجّه `/` إلى الخادم و`/sitemap.xml` إلى خريطة الموقع. اسم النطاق الرسمي يؤخذ من `VERCEL_PROJECT_PRODUCTION_URL` لتوليد canonical وog:url. توجد بيانات ProfilePage/Person ووصف عربي وrobots.txt. بعد اعتماد المواد الحقيقية يُثبت النطاق في Search Console؛ التهيئة لا تضمن الترتيب ولا تحذف نتائج الآخرين.
+
+## الاختبارات
+
+نجح البناء وESLint وفحص تبعيات التشغيل `npm audit --omit=dev`. اختبارات قاعدة البيانات في `supabase/tests/access.sql` تتحقق من القراءة العامة، منع غير المالك، عزل المسودات، صلاحيات الملفات، النشر ورقم النسخة. الاختبار يستخدم transaction وrollback ولا يترك مستخدمين أو ملفات أو تعديلًا على المنشور. تشغيله: `python3 scripts/supabase-admin.py query < supabase/tests/access.sql`.
+
+اختُبرت الواجهة بـPlaywright على سطح المكتب والهاتف. راجع `docs/deployment.md` للحالة الفعلية للنشر وآخر تحقق.

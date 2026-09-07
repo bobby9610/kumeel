@@ -22,3 +22,12 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Credentials and generated deployment files
+.env
+.env.*
+!.env.example
+.vercel
+*.tsbuildinfo
+
+__pycache__/
